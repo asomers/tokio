@@ -3,7 +3,7 @@ use crate::io::driver::{Handle, Interest, Registration};
 use mio::event::Source;
 use std::fmt;
 use std::io;
-use std::ops::Deref;
+use std::ops::{Deref, DerefMut};
 
 cfg_io_driver! {
     /// Associates an I/O resource that implements the [`std::io::Read`] and/or
@@ -59,7 +59,7 @@ cfg_io_driver! {
     /// [`TcpListener`]: crate::net::TcpListener
     /// [`poll_read_ready`]: Registration::poll_read_ready
     /// [`poll_write_ready`]: Registration::poll_write_ready
-    pub(crate) struct PollEvented<E: Source> {
+    pub struct PollEvented<E: Source> {
         io: Option<E>,
         registration: Registration,
     }
@@ -77,7 +77,7 @@ impl<E: Source> PollEvented<E> {
     /// The runtime is usually set implicitly when this function is called
     /// from a future driven by a tokio runtime, otherwise runtime can be set
     /// explicitly with [`Runtime::enter`](crate::runtime::Runtime::enter) function.
-    #[cfg_attr(feature = "signal", allow(unused))]
+    #[cfg_attr(any(feature = "aio", feature = "signal"), allow(unused))]
     pub(crate) fn new(io: E) -> io::Result<Self> {
         PollEvented::new_with_interest(io, Interest::READABLE | Interest::WRITABLE)
     }
@@ -98,7 +98,7 @@ impl<E: Source> PollEvented<E> {
     /// explicitly with [`Runtime::enter`](crate::runtime::Runtime::enter)
     /// function.
     #[cfg_attr(feature = "signal", allow(unused))]
-    pub(crate) fn new_with_interest(io: E, interest: Interest) -> io::Result<Self> {
+    pub fn new_with_interest(io: E, interest: Interest) -> io::Result<Self> {
         Self::new_with_interest_and_handle(io, interest, Handle::current())
     }
 
@@ -125,8 +125,8 @@ impl<E: Source> PollEvented<E> {
     }
 
     /// Deregister the inner io from the registration and returns a Result containing the inner io
-    #[cfg(any(feature = "net", feature = "process"))]
-    pub(crate) fn into_inner(mut self) -> io::Result<E> {
+    #[cfg(any(feature = "aio", feature = "net", feature = "process"))]
+    pub fn into_inner(mut self) -> io::Result<E> {
         let mut inner = self.io.take().unwrap(); // As io shouldn't ever be None, just unwrap here.
         self.registration.deregister(&mut inner)?;
         Ok(inner)
@@ -134,17 +134,43 @@ impl<E: Source> PollEvented<E> {
 }
 
 feature! {
-    #![any(feature = "net", feature = "process")]
+    #![any(feature = "aio", feature = "net", feature = "process")]
 
-    use crate::io::ReadBuf;
+    use crate::io::driver::ReadyEvent;
     use std::task::{Context, Poll};
 
+    #[derive(Debug)]
+    pub struct PollEventedEvent(ReadyEvent);
+
     impl<E: Source> PollEvented<E> {
+        /// Indicates to Tokio that the source is no longer ready.  The internal
+        /// readiness flag will be cleared, and tokio will wait for the next
+        /// edge-triggered readiness notification from the OS.
+        ///
+        /// It is critical that this function not be called unless your code
+        /// _actually observes_ that the source is _not_ ready.  The OS must
+        /// deliver a subsequent notification, or this source will block
+        /// forever.
+        pub fn clear_read_ready(&self, ev: PollEventedEvent) {
+            self.registration.clear_readiness(ev.0)
+        }
+
+        /// Polls for read readiness.  Either AIO or LIO counts.
+        pub fn poll_read_ready<'a>(
+            &'a self,
+            cx: &mut Context<'_>
+        ) -> Poll<io::Result<PollEventedEvent>>
+        {
+            let ev = ready!(self.registration.poll_read_ready(cx))?;
+            Poll::Ready(Ok(PollEventedEvent(ev)))
+        }
+
         // Safety: The caller must ensure that `E` can read into uninitialized memory
+        #[cfg(any(feature = "net", feature = "process"))]
         pub(crate) unsafe fn poll_read<'a>(
             &'a self,
             cx: &mut Context<'_>,
-            buf: &mut ReadBuf<'_>,
+            buf: &mut crate::io::ReadBuf<'_>,
         ) -> Poll<io::Result<()>>
         where
             &'a E: io::Read + 'a,
@@ -163,6 +189,7 @@ feature! {
             Poll::Ready(Ok(()))
         }
 
+        #[cfg(any(feature = "net", feature = "process"))]
         pub(crate) fn poll_write<'a>(&'a self, cx: &mut Context<'_>, buf: &[u8]) -> Poll<io::Result<usize>>
         where
             &'a E: io::Write + 'a,
@@ -191,6 +218,12 @@ impl<E: Source> Deref for PollEvented<E> {
 
     fn deref(&self) -> &E {
         self.io.as_ref().unwrap()
+    }
+}
+
+impl<E: Source> DerefMut for PollEvented<E> {
+    fn deref_mut(&mut self) -> &mut E {
+        self.io.as_mut().unwrap()
     }
 }
 

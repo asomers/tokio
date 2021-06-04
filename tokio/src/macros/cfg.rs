@@ -45,6 +45,16 @@ macro_rules! cfg_atomic_waker_impl {
     }
 }
 
+macro_rules! cfg_aio {
+    ($($item:item)*) => {
+        $(
+            #[cfg(feature = "aio")]
+            #[cfg_attr(docsrs, doc(cfg(feature = "aio")))]
+            $item
+        )*
+    }
+}
+
 macro_rules! cfg_fs {
     ($($item:item)*) => {
         $(
@@ -65,11 +75,13 @@ macro_rules! cfg_io_driver {
     ($($item:item)*) => {
         $(
             #[cfg(any(
+                feature = "aio",
                 feature = "net",
                 feature = "process",
                 all(unix, feature = "signal"),
             ))]
             #[cfg_attr(docsrs, doc(cfg(any(
+                feature = "aio",
                 feature = "net",
                 feature = "process",
                 all(unix, feature = "signal"),
@@ -83,6 +95,7 @@ macro_rules! cfg_io_driver_impl {
     ( $( $item:item )* ) => {
         $(
             #[cfg(any(
+                feature = "aio",
                 feature = "net",
                 feature = "process",
                 all(unix, feature = "signal"),
@@ -96,6 +109,7 @@ macro_rules! cfg_not_io_driver {
     ($($item:item)*) => {
         $(
             #[cfg(not(any(
+                feature = "aio",
                 feature = "net",
                 feature = "process",
                 all(unix, feature = "signal"),

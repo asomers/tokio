@@ -207,13 +207,15 @@ pub use std::io::{Error, ErrorKind, Result, SeekFrom};
 cfg_io_driver_impl! {
     pub(crate) mod driver;
 
-    cfg_net! {
-        pub use driver::{Interest, Ready};
-    }
+    #[cfg(any(feature = "aio", feature = "net"))]
+    #[cfg_attr(docsrs, doc(cfg(any(feature = "aio", feature = "net"))))]
+    pub use driver::{Interest, Ready};
 
     mod poll_evented;
 
-    #[cfg(not(loom))]
+    #[cfg(feature = "aio")]
+    pub use poll_evented::PollEvented;
+    #[cfg(all(not(feature = "aio"), not(loom)))]
     pub(crate) use poll_evented::PollEvented;
 }
 

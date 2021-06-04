@@ -1,4 +1,5 @@
-#![cfg_attr(not(feature = "net"), allow(dead_code, unreachable_pub))]
+#![cfg_attr(not(any(feature = "aio", feature = "net")),
+    allow(dead_code, unreachable_pub))]
 
 use crate::io::driver::Ready;
 
@@ -9,11 +10,21 @@ use std::ops;
 ///
 /// Specifies the readiness events the caller is interested in when awaiting on
 /// I/O resource readiness states.
-#[cfg_attr(docsrs, doc(cfg(feature = "net")))]
+#[cfg_attr(docsrs, doc(cfg(any(feature = "aio", feature = "net"))))]
 #[derive(Clone, Copy, Eq, PartialEq)]
 pub struct Interest(mio::Interest);
 
 impl Interest {
+    cfg_aio! {
+        /// Interest for POSIX AIO
+        pub const AIO: Interest = Interest(mio::Interest::AIO);
+    }
+
+    cfg_aio! {
+        /// Interest for POSIX AIO lio_listio events
+        pub const LIO: Interest = Interest(mio::Interest::LIO);
+    }
+
     /// Interest in all readable events.
     ///
     /// Readable interest includes read-closed events.
@@ -58,7 +69,7 @@ impl Interest {
         self.0.is_writable()
     }
 
-    /// Add together two `Interst` values.
+    /// Add together two `Interest` values.
     ///
     /// This function works from a `const` context.
     ///
