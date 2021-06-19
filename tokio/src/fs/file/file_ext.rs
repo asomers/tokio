@@ -33,7 +33,7 @@ pub trait FileExt {
     ///
     /// Note that since this function does not affect the File's seek position,
     /// multiple calls may be issued concurrently for the same file.
-    fn write_at<'a>(&'a self, buf: &'a mut [u8], ofs: u64) -> super::os::WriteAt<'a>;
+    fn write_at<'a>(&'a self, buf: &'a [u8], ofs: u64) -> super::os::WriteAt<'a>;
     //fn write_at<'a>(&self, buf: &'a mut [u8], ofs: u64)
         //-> Pin<Box<dyn Future<Output = io::Result<usize>> + 'a>>;
 }

@@ -24,7 +24,7 @@ impl<'a> Future for WriteAt<'a> {
 
 impl super::super::FileExt for File {
 
-    fn write_at<'a>(&'a self, buf: &'a mut [u8], ofs: u64) -> WriteAt<'a>
+    fn write_at<'a>(&'a self, buf: &'a [u8], ofs: u64) -> WriteAt<'a>
     {
         WriteAt(super::generic::write_at(self, buf, ofs))
     }
