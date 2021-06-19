@@ -8,6 +8,8 @@ use std::{
     pin::Pin,
     task::{Context, Poll},
 };
+#[cfg(unix)]
+use sys::Blocking;
 
 pub(in crate::fs) async fn sync_all(file: &File) -> io::Result<()> {
     let mut inner = file.inner.lock().await;
@@ -20,47 +22,31 @@ pub(in crate::fs) async fn sync_all(file: &File) -> io::Result<()> {
 #[cfg(unix)]
 pub(in crate::fs) fn write_at<'a>(file: &'a File, buf: &'a [u8], ofs: u64) -> WriteAt<'a>
 {
-    let state = WriteAtState::Idle;
-    WriteAt {state, file, buf, ofs}
-}
-
-#[derive(Debug)]
-enum WriteAtState {
-    Idle,
-    Busy(sys::Blocking<io::Result<usize>>),
+    let v = Vec::from(buf);
+    let std = file.std.clone();
+    let handle: Blocking<io::Result<usize>> = sys::run(move || {
+        std.write_at(&v[..], ofs)
+    });
+    WriteAt {file, buf, ofs, handle}
 }
 
 #[derive(Debug)]
 #[must_use = "futures do nothing unless polled"]
 pub(in crate::fs) struct WriteAt<'a> {
-    state: WriteAtState,
     file: &'a File,
     buf: &'a [u8],
-    ofs: u64
+    ofs: u64,
+    handle: Blocking<io::Result<usize>>
 }
 
 impl<'a> Future for WriteAt<'a> {
     type Output = io::Result<usize>;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        match self.state {
-            WriteAtState::Idle => {
-                let buf = Vec::from(self.buf);
-                let ofs = self.ofs;
-                let file = self.file.std.clone();
-
-                self.state = WriteAtState::Busy(sys::run(move || {
-                    let res = file.write_at(&buf[..], ofs);
-                    res
-                }));
-
-                Poll::Pending
-            }
-            WriteAtState::Busy(ref mut rx) => {
-                let res = ready!(Pin::new(rx).poll(cx))?;
-                self.state = WriteAtState::Idle;
-                Poll::Ready(res)
-            }
+        match Pin::new(&mut self.handle).poll(cx) {
+            Poll::Ready(Ok(r)) => Poll::Ready(r),
+            Poll::Ready(Err(e)) => Poll::Ready(Err(e.into())),
+            Poll::Pending => Poll::Pending
         }
     }
 }

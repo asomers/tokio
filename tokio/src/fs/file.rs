@@ -642,9 +642,11 @@ impl AsyncWrite for File {
             return Ready(Err(e.into()));
         }
 
+        eprintln!("polling");
         loop {
             match inner.state {
                 Idle(ref mut buf_cell) => {
+                    eprintln!("polling when idle");
                     let mut buf = buf_cell.take().unwrap();
 
                     let seek = if !buf.is_empty() {
@@ -660,7 +662,10 @@ impl AsyncWrite for File {
                         let res = if let Some(seek) = seek {
                             (&*std).seek(seek).and_then(|_| buf.write_to(&mut &*std))
                         } else {
-                            buf.write_to(&mut &*std)
+                            eprintln!("about to write_to");
+                            let r = buf.write_to(&mut &*std);
+                            eprintln!("wrote to");
+                            r
                         };
 
                         (Operation::Write(res), buf)
@@ -669,6 +674,7 @@ impl AsyncWrite for File {
                     return Ready(Ok(n));
                 }
                 Busy(ref mut rx) => {
+                    eprintln!("polling when busy");
                     let (op, buf) = ready!(Pin::new(rx).poll(cx))?;
                     inner.state = Idle(Some(buf));
 
