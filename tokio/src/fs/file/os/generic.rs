@@ -11,7 +11,7 @@ use std::{
 #[cfg(unix)]
 use sys::Blocking;
 
-pub(in crate::fs) async fn sync_all(file: &File) -> io::Result<()> {
+pub(super) async fn sync_all(file: &File) -> io::Result<()> {
     let mut inner = file.inner.lock().await;
     inner.complete_inflight().await;
 
@@ -20,7 +20,7 @@ pub(in crate::fs) async fn sync_all(file: &File) -> io::Result<()> {
 }
 
 #[cfg(unix)]
-pub(in crate::fs) fn write_at<'a>(file: &'a File, buf: &'a [u8], ofs: u64) -> WriteAt<'a>
+pub(super) fn write_at<'a>(file: &'a File, buf: &'a [u8], ofs: u64) -> WriteAt<'a>
 {
     let v = Vec::from(buf);
     let std = file.std.clone();
@@ -32,7 +32,7 @@ pub(in crate::fs) fn write_at<'a>(file: &'a File, buf: &'a [u8], ofs: u64) -> Wr
 
 #[derive(Debug)]
 #[must_use = "futures do nothing unless polled"]
-pub(in crate::fs) struct WriteAt<'a> {
+pub(super) struct WriteAt<'a> {
     file: &'a File,
     buf: &'a [u8],
     ofs: u64,
@@ -50,4 +50,3 @@ impl<'a> Future for WriteAt<'a> {
         }
     }
 }
-

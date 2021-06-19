@@ -29,3 +29,7 @@ impl super::super::FileExt for File {
         WriteAt(super::generic::write_at(self, buf, ofs))
     }
 }
+
+pub(in super::super) async fn sync_all(file: &File) -> io::Result<()> {
+    super::generic::sync_all(file).await
+}

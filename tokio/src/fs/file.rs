@@ -4,12 +4,9 @@
 
 use self::State::*;
 use crate::fs::{asyncify, sys};
-//use crate::fs::os;
 use crate::io::blocking::Buf;
 use crate::io::{AsyncRead, AsyncSeek, AsyncWrite, ReadBuf};
 use crate::sync::Mutex;
-
-//mod os;
 
 use std::fmt;
 use std::fs::{Metadata, Permissions};
@@ -27,7 +24,6 @@ mod file_ext;
 #[cfg(unix)]
 pub use self::file_ext::FileExt;
 
-#[cfg(unix)]
 mod os;
 
 /// A reference to an open file on the filesystem.
@@ -89,11 +85,11 @@ mod os;
 /// # }
 /// ```
 pub struct File {
-    pub(super) std: Arc<sys::File>,
-    pub(super) inner: Mutex<Inner>,
+    std: Arc<sys::File>,
+    inner: Mutex<Inner>,
 }
 
-pub(super) struct Inner {
+struct Inner {
     state: State,
 
     /// Errors from writes/flushes are returned in write/flush calls. If a write
@@ -245,13 +241,7 @@ impl File {
     /// [`write_all`]: fn@crate::io::AsyncWriteExt::write_all
     /// [`AsyncWriteExt`]: trait@crate::io::AsyncWriteExt
     pub async fn sync_all(&self) -> io::Result<()> {
-        os::generic::sync_all(&self).await
-        //self.generic_sync_all().await
-        //let mut inner = self.inner.lock().await;
-        //inner.complete_inflight().await;
-
-        //let std = self.std.clone();
-        //asyncify(move || std.sync_all()).await
+        os::sync_all(&self).await
     }
 
     /// This function is similar to `sync_all`, except that it may not
@@ -490,13 +480,6 @@ impl File {
         let std = self.std.clone();
         asyncify(move || std.set_permissions(perm)).await
     }
-
-    // Note: it must be 
-    //#[cfg(unix)]
-    //pub async fn write_at<'a>(&'a self, buf: &'a mut [u8], ofs: u64) -> io::Result<usize>
-    //{
-        //sys::os::write_at(self, buf, ofs).await
-    //}
 }
 
 impl AsyncRead for File {
@@ -642,11 +625,9 @@ impl AsyncWrite for File {
             return Ready(Err(e.into()));
         }
 
-        eprintln!("polling");
         loop {
             match inner.state {
                 Idle(ref mut buf_cell) => {
-                    eprintln!("polling when idle");
                     let mut buf = buf_cell.take().unwrap();
 
                     let seek = if !buf.is_empty() {
@@ -662,10 +643,7 @@ impl AsyncWrite for File {
                         let res = if let Some(seek) = seek {
                             (&*std).seek(seek).and_then(|_| buf.write_to(&mut &*std))
                         } else {
-                            eprintln!("about to write_to");
-                            let r = buf.write_to(&mut &*std);
-                            eprintln!("wrote to");
-                            r
+                            buf.write_to(&mut &*std)
                         };
 
                         (Operation::Write(res), buf)
@@ -674,7 +652,6 @@ impl AsyncWrite for File {
                     return Ready(Ok(n));
                 }
                 Busy(ref mut rx) => {
-                    eprintln!("polling when busy");
                     let (op, buf) = ready!(Pin::new(rx).poll(cx))?;
                     inner.state = Idle(Some(buf));
 
@@ -754,7 +731,7 @@ impl std::os::windows::io::FromRawHandle for File {
 }
 
 impl Inner {
-    pub(super) async fn complete_inflight(&mut self) {
+    async fn complete_inflight(&mut self) {
         use crate::future::poll_fn;
 
         if let Err(e) = poll_fn(|cx| Pin::new(&mut *self).poll_flush(cx)).await {
