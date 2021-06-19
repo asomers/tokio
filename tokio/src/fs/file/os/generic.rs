@@ -30,6 +30,8 @@ enum WriteAtState {
     Busy(sys::Blocking<io::Result<usize>>),
 }
 
+#[derive(Debug)]
+#[must_use = "futures do nothing unless polled"]
 pub(in crate::fs) struct WriteAt<'a> {
     state: WriteAtState,
     file: &'a File,

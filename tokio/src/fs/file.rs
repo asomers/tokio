@@ -24,6 +24,7 @@ use std::task::Poll::*;
 
 #[cfg(unix)]
 mod file_ext;
+#[cfg(unix)]
 pub use self::file_ext::FileExt;
 
 #[cfg(unix)]
@@ -244,7 +245,7 @@ impl File {
     /// [`write_all`]: fn@crate::io::AsyncWriteExt::write_all
     /// [`AsyncWriteExt`]: trait@crate::io::AsyncWriteExt
     pub async fn sync_all(&self) -> io::Result<()> {
-        sys::os::sync_all(&self).await
+        os::generic::sync_all(&self).await
         //self.generic_sync_all().await
         //let mut inner = self.inner.lock().await;
         //inner.complete_inflight().await;
@@ -490,29 +491,12 @@ impl File {
         asyncify(move || std.set_permissions(perm)).await
     }
 
-    /// Writes a number of bytes starting from a given offset.
-    ///
-    /// Returns the number of bytes written.
-    ///
-    /// The offset is relative to the start of the file and thus independent
-    /// from the current cursor.
-    ///
-    /// The current file cursor is not affected by this function.
-    ///
-    /// When writing beyond the end of the file, the file is appropriately
-    /// extended and the intermediate bytes are initialized with the value 0.
-    ///
-    /// Note that similar to File::write, it is not an error to return a short
-    /// write.
-    ///
-    /// Note that since this function does not affect the File's seek position,
-    /// multiple calls may be issued concurrently for the same file.
     // Note: it must be 
-    #[cfg(unix)]
-    pub async fn write_at<'a>(&'a self, buf: &'a mut [u8], ofs: u64) -> io::Result<usize>
-    {
-        sys::os::write_at(self, buf, ofs).await
-    }
+    //#[cfg(unix)]
+    //pub async fn write_at<'a>(&'a self, buf: &'a mut [u8], ofs: u64) -> io::Result<usize>
+    //{
+        //sys::os::write_at(self, buf, ofs).await
+    //}
 }
 
 impl AsyncRead for File {

@@ -4,57 +4,26 @@ use super::super::super::*;
 #[cfg(unix)]
 use std::{
     future::Future,
-    os::unix::fs::FileExt,
     pin::Pin,
     task::{Context, Poll},
 };
 
+/// Future for the [`write_at`](crate::fs::file::FileExt::write_at) method.
 #[derive(Debug)]
-enum WriteAtState {
-    Idle,
-    Busy(sys::Blocking<io::Result<usize>>),
-}
-
-pub(super) struct WriteAt<'a> {
-    state: WriteAtState,
-    file: &'a File,
-    buf: &'a [u8],
-    ofs: u64
-}
+#[must_use = "futures do nothing unless polled"]
+pub struct WriteAt<'a>(super::generic::WriteAt<'a>);
 
 impl<'a> Future for WriteAt<'a> {
     type Output = io::Result<usize>;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        match self.state {
-            WriteAtState::Idle => {
-                let buf = Vec::from(self.buf);
-                let ofs = self.ofs;
-                let file = self.file.std.clone();
-
-                self.state = WriteAtState::Busy(sys::run(move || {
-                    let res = file.write_at(&buf[..], ofs);
-                    res
-                }));
-
-                Poll::Pending
-            }
-            WriteAtState::Busy(ref mut rx) => {
-                let res = ready!(Pin::new(rx).poll(cx))?;
-                self.state = WriteAtState::Idle;
-                Poll::Ready(res)
-            }
-        }
+        Pin::new(&mut self.0).poll(cx)
     }
 }
 
 impl super::super::FileExt for File {
-    type WriteAt = WriteAt<'_>;
-
-    fn write_at<'a>(&self, buf: &'a mut [u8], ofs: u64) -> Self::WriteAt<'a> {
-        let state = WriteAtState::Idle;
-        WriteAt {state, file, buf, ofs}
+    fn write_at<'a>(&'a self, buf: &'a mut [u8], ofs: u64) -> WriteAt<'a>
+    {
+        WriteAt(super::generic::write_at(self, buf, ofs))
     }
 }
-
-

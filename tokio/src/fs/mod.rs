@@ -38,6 +38,8 @@ pub use self::dir_builder::DirBuilder;
 
 mod file;
 pub use self::file::File;
+#[cfg(unix)]
+pub use self::file::FileExt;
 
 mod hard_link;
 pub use self::hard_link::hard_link;
