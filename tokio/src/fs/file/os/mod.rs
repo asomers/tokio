@@ -1,7 +1,6 @@
 use cfg_if::cfg_if;
 
-// TODO: not public
-pub(super) mod generic;
+mod generic;
 
 cfg_if! {
     if #[cfg(target_os = "freebsd")] {
