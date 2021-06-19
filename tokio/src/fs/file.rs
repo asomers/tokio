@@ -4,9 +4,12 @@
 
 use self::State::*;
 use crate::fs::{asyncify, sys};
+//use crate::fs::os;
 use crate::io::blocking::Buf;
 use crate::io::{AsyncRead, AsyncSeek, AsyncWrite, ReadBuf};
 use crate::sync::Mutex;
+
+//mod os;
 
 use std::fmt;
 use std::fs::{Metadata, Permissions};
@@ -78,11 +81,11 @@ use std::task::Poll::*;
 /// # }
 /// ```
 pub struct File {
-    std: Arc<sys::File>,
-    inner: Mutex<Inner>,
+    pub(super) std: Arc<sys::File>,
+    pub(super) inner: Mutex<Inner>,
 }
 
-struct Inner {
+pub(super) struct Inner {
     state: State,
 
     /// Errors from writes/flushes are returned in write/flush calls. If a write
@@ -234,11 +237,13 @@ impl File {
     /// [`write_all`]: fn@crate::io::AsyncWriteExt::write_all
     /// [`AsyncWriteExt`]: trait@crate::io::AsyncWriteExt
     pub async fn sync_all(&self) -> io::Result<()> {
-        let mut inner = self.inner.lock().await;
-        inner.complete_inflight().await;
+        sys::os::sync_all(&self).await
+        //self.generic_sync_all().await
+        //let mut inner = self.inner.lock().await;
+        //inner.complete_inflight().await;
 
-        let std = self.std.clone();
-        asyncify(move || std.sync_all()).await
+        //let std = self.std.clone();
+        //asyncify(move || std.sync_all()).await
     }
 
     /// This function is similar to `sync_all`, except that it may not
@@ -476,6 +481,32 @@ impl File {
     pub async fn set_permissions(&self, perm: Permissions) -> io::Result<()> {
         let std = self.std.clone();
         asyncify(move || std.set_permissions(perm)).await
+    }
+
+    /// Writes a number of bytes starting from a given offset.
+    ///
+    /// Returns the number of bytes written.
+    ///
+    /// The offset is relative to the start of the file and thus independent
+    /// from the current cursor.
+    ///
+    /// The current file cursor is not affected by this function.
+    ///
+    /// When writing beyond the end of the file, the file is appropriately
+    /// extended and the intermediate bytes are initialized with the value 0.
+    ///
+    /// Note that similar to File::write, it is not an error to return a short
+    /// write.
+    ///
+    /// Note that since this function does not affect the File's seek position,
+    /// multiple calls may be issued concurrently for the same file.
+    #[cfg(unix)]
+    pub async fn write_at<'a>(&'a self, buf: &'a mut [u8], ofs: u64) -> io::Result<usize>
+    {
+        sys::os::write_at(self, buf, ofs).await
+
+        //let std = self.std.clone();
+        //asyncify(move || std.write_at(buf, offset)).await
     }
 }
 
@@ -728,7 +759,7 @@ impl std::os::windows::io::FromRawHandle for File {
 }
 
 impl Inner {
-    async fn complete_inflight(&mut self) {
+    pub(super) async fn complete_inflight(&mut self) {
         use crate::future::poll_fn;
 
         if let Err(e) = poll_fn(|cx| Pin::new(&mut *self).poll_flush(cx)).await {
