@@ -39,10 +39,6 @@ pub use self::dir_builder::DirBuilder;
 mod file;
 pub use self::file::File;
 
-//#[cfg(unix)]
-//mod file_ext;
-//pub use self::file_ext::FileExt;
-
 mod hard_link;
 pub use self::hard_link::hard_link;
 
@@ -125,7 +121,7 @@ where
 
 /// Types in this module can be mocked out in tests.
 mod sys {
-    pub(super) mod os;
+    //pub(super) mod os;
     pub(crate) use std::fs::File;
 
     // TODO: don't rename

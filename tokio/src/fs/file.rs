@@ -22,6 +22,13 @@ use std::task::Context;
 use std::task::Poll;
 use std::task::Poll::*;
 
+#[cfg(unix)]
+mod file_ext;
+pub use self::file_ext::FileExt;
+
+#[cfg(unix)]
+mod os;
+
 /// A reference to an open file on the filesystem.
 ///
 /// This is a specialized version of [`std::fs::File`][std] for usage from the
@@ -500,13 +507,11 @@ impl File {
     ///
     /// Note that since this function does not affect the File's seek position,
     /// multiple calls may be issued concurrently for the same file.
+    // Note: it must be 
     #[cfg(unix)]
     pub async fn write_at<'a>(&'a self, buf: &'a mut [u8], ofs: u64) -> io::Result<usize>
     {
         sys::os::write_at(self, buf, ofs).await
-
-        //let std = self.std.clone();
-        //asyncify(move || std.write_at(buf, offset)).await
     }
 }
 
