@@ -56,8 +56,8 @@ impl TestWaker {
     }
 }
 
-fn is_blocking(e: &nix::Error) -> bool {
-    Some(Errno::EAGAIN) == e.as_errno()
+fn is_blocking(e: nix::Error) -> bool {
+    Errno::EAGAIN == e
 }
 
 #[derive(Debug)]
@@ -75,7 +75,7 @@ impl Read for &FileDescriptor {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         match read(self.fd, buf) {
             Ok(n) => Ok(n),
-            Err(e) if is_blocking(&e) => Err(ErrorKind::WouldBlock.into()),
+            Err(e) if is_blocking(e) => Err(ErrorKind::WouldBlock.into()),
             Err(e) => Err(io::Error::new(ErrorKind::Other, e)),
         }
     }
@@ -91,7 +91,7 @@ impl Write for &FileDescriptor {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         match write(self.fd, buf) {
             Ok(n) => Ok(n),
-            Err(e) if is_blocking(&e) => Err(ErrorKind::WouldBlock.into()),
+            Err(e) if is_blocking(e) => Err(ErrorKind::WouldBlock.into()),
             Err(e) => Err(io::Error::new(ErrorKind::Other, e)),
         }
     }
