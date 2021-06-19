@@ -44,7 +44,7 @@ impl super::super::FileExt for File {
 /// Future for the [`sync_all`](crate::fs::file::sync_all) method.
 #[derive(Debug)]
 #[must_use = "futures do nothing unless polled"]
-pub struct SyncAll {
+struct SyncAll {
     state: AioState,
     op: PollAio<AioCb<'static>>
 }
@@ -65,7 +65,9 @@ impl Future for SyncAll {
                 Poll::Pending
             },
             Poll::Ready(Ok(_ev)) => {
-                let result = (*self.op).aio_return().map(drop);
+                let result = (*self.op).aio_return()
+                    .map(drop)
+                    .map_err(io::Error::from);
                 Poll::Ready(result)
             },
             Poll::Ready(Err(e)) => Poll::Ready(Err(e))

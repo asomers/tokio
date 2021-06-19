@@ -109,7 +109,8 @@ parking_lot = { version = "0.11.0", optional = true }
 tracing = { version = "0.1.21", default-features = false, features = ["std"], optional = true } # Not in full
 
 [target.'cfg(target_os = "freebsd")'.dependencies]
-mio-aio = { git = "https://github.com/asomers/mio-aio", rev = "f0a68b53003436db30cd96480a9fcd9c410affb7"  }
+mio-aio = { path = "../../mio-aio" }
+#mio-aio = { git = "https://github.com/asomers/mio-aio", rev = "f0a68b53003436db30cd96480a9fcd9c410affb7"  }
 
 [target.'cfg(unix)'.dependencies]
 libc = { version = "0.2.42", optional = true }
